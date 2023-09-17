@@ -1,0 +1,77 @@
+import comtypes.client
+from datetime import datetime
+import os
+import sys
+from docx import Document
+from PyPDF2 import PdfFileMerger, PdfFileReader
+
+
+def docxTOpdf(inpud, filename):
+    # open file
+    fileInput = open(inpud, 'rt')
+    # split file into rows
+    rows = fileInput.read().split("\n")
+    # define the number of PDF file pages
+    pages = int(len(rows)/36)
+    # case for increase the number of pages if there is more than 36 rows
+    if len(rows) % 36 != 0:
+        pages += 1
+    # list declaration
+    cells = []
+    # fill list with cell split rows  - creation of the table
+    for w in range(len(rows)):
+        cells.append(rows[w].split("\t"))
+
+    # function for data replacement
+    def replacement(data, page):
+        wordFile = Document('template.docx')  # open sample file by python-docx
+        # replace date and hour
+        dah = wordFile.paragraphs[5].runs[0]
+        dah.text = dah.text.replace('data2137', data)
+        fn = wordFile.paragraphs[3]
+        fn.text = fn.text.replace('source', str(filename))
+        # for selected page replace page cells
+        for i in range(1, 37):  # row
+            for r in range(0, 8):  # cell
+                row = wordFile.tables[0].rows[i].cells[r]
+                k = i + page * 36
+                if k > len(rows)-5:
+                    break
+                row.text = cells[k][r]
+        # file save
+        wordFile.save('working.docx')
+
+    variable = '14-05-2020'
+    p = 0
+    namelist = []
+    while p != pages:
+        replacement(variable, p)
+
+        # .docx to .pdf conversion
+        wdFormatPDF = 17
+        in_file = r'C:\MEBP\working.docx' # path for Magstress main data folder
+        # pdf file name
+        name = 'wynik_' + str(p+1) + '.pdf'
+        out_file = r'C:\MEBP\\' + name
+        word = comtypes.client.CreateObject('Word.Application')
+        doc = word.Documents.Open(in_file)
+        doc.SaveAs(out_file, FileFormat=wdFormatPDF)
+        doc.Close()
+        word.Quit()
+        namelist.append(name)  # creation of list of created PDF files
+        p += 1
+
+    # compile PDF
+    merger = PdfFileMerger()
+    for name in range(0, len(namelist)):
+        merger.append(PdfFileReader(namelist[name]))
+
+    date = datetime.now().strftime('%Y-%m-%d_%H-%M')
+    merger.write('Raport_' + date + '.pdf')
+    for file in namelist:
+        os.remove(file)
+    merger.close()
+
+
+if __name__ == "__main__":
+    docxTOpdf(sys.argv[1], sys.argv[2])
